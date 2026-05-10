@@ -1,0 +1,6 @@
+build/
+pkg/
+*.txz
+*.txz.md5
+linux-*.tar.xz
+.DS_Store

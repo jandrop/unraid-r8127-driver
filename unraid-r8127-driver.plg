@@ -1,0 +1,150 @@
+<?xml version='1.0' standalone='yes'?>
+<!DOCTYPE PLUGIN [
+  <!ENTITY name      "r8127-driver">
+  <!ENTITY author    "jandrop">
+  <!ENTITY version   "2026.05.10">
+  <!ENTITY gitURL    "https://raw.githubusercontent.com/jandrop/unraid-r8127-driver/main">
+  <!ENTITY pluginURL "&gitURL;/unraid-r8127-driver.plg">
+  <!ENTITY plugin    "/boot/config/plugins/&name;">
+  <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
+  <!ENTITY packages  "/boot/extra">
+]>
+
+<PLUGIN name="&name;" author="&author;" version="&version;"
+  pluginURL="&pluginURL;" min="6.12.54"
+  support="https://github.com/jandrop/unraid-r8127-driver/issues">
+
+<CHANGES>
+###2026.05.10
+- Initial release. Fork of SzilagyiDaniel/Unraid-r8127 with releases
+  built for Unraid kernels the upstream repo does not yet ship
+  (starting with 6.12.87-Unraid).
+</CHANGES>
+
+<FILE Name="&emhttp;/README.md">
+<INLINE><![CDATA[
+**Realtek RTL8127 10GbE OOT Driver (community build)**
+
+Out-of-tree Realtek r8127 driver for the RTL8127 10 Gigabit Ethernet
+controller, packaged for Unraid. The plugin downloads a Slackware
+package matching the running kernel from this repo's GitHub Releases
+and copies it into `/boot/extra/` so Unraid installs it automatically
+on every boot.
+
+If the kernel changes and no release exists yet for that kernel,
+the plugin will report it and you can either open an issue at
+https://github.com/jandrop/unraid-r8127-driver/issues or rebuild
+locally using `scripts/build.sh` from the repo.
+
+Driver source: Realtek r8127 (via https://github.com/SzilagyiDaniel/Unraid-r8127)
+Repository:    https://github.com/jandrop/unraid-r8127-driver
+]]></INLINE>
+</FILE>
+
+<FILE Run="/bin/bash">
+<INLINE><![CDATA[
+KVER="$(uname -r)"
+PLUGIN_NAME="r8127-driver"
+EMHTTP="/usr/local/emhttp/plugins/${PLUGIN_NAME}"
+PKG_DIR="/boot/extra"
+DL_BASE="https://github.com/jandrop/unraid-r8127-driver/releases/download/${KVER}"
+
+echo "----------- r8127 driver plugin -----------"
+echo "Kernel: ${KVER}"
+
+mkdir -p "${EMHTTP}" "${PKG_DIR}"
+
+# Blacklist r8169 (the in-tree generic Realtek driver does not support
+# RTL8127 and would otherwise grab the device).
+if [ ! -d /boot/config/modprobe.d ]; then
+  mkdir -p /boot/config/modprobe.d
+fi
+if ! grep -q "blacklist r8169" /boot/config/modprobe.d/r8169.conf 2>/dev/null; then
+  echo "blacklist r8169" >> /boot/config/modprobe.d/r8169.conf
+  echo "Blacklisted r8169 module."
+fi
+
+# Find an existing local package for this kernel before going to the network.
+LOCAL_PKG="$(ls -1 ${PKG_DIR}/r8127-*-${KVER}-*.txz 2>/dev/null | tail -1)"
+
+if [ -z "${LOCAL_PKG}" ]; then
+  # Look up the latest release asset for this kernel via the GitHub API,
+  # then download it to /boot/extra/ so it installs on every boot.
+  echo "Looking up release asset for ${KVER}..."
+  ASSETS_JSON="$(wget -qO- "https://api.github.com/repos/jandrop/unraid-r8127-driver/releases/tags/${KVER}" 2>/dev/null)"
+  ASSET_NAME="$(echo "${ASSETS_JSON}" | jq -r '.assets[]?.name' 2>/dev/null | grep -E '^r8127-.*-1\.txz$' | sort -V | tail -1)"
+
+  if [ -z "${ASSET_NAME}" ] || [ "${ASSET_NAME}" = "null" ]; then
+    echo
+    echo "ERROR: no GitHub release found with tag ${KVER}."
+    echo "Either the kernel is too new (no build published yet) or the network"
+    echo "is unreachable. Open an issue at"
+    echo "  https://github.com/jandrop/unraid-r8127-driver/issues"
+    echo "or rebuild locally with the build script in the repo."
+    echo
+    exit 1
+  fi
+
+  echo "Downloading ${ASSET_NAME}..."
+  if ! wget -q -O "${PKG_DIR}/${ASSET_NAME}" "${DL_BASE}/${ASSET_NAME}"; then
+    echo "ERROR: download failed."
+    rm -f "${PKG_DIR}/${ASSET_NAME}"
+    exit 1
+  fi
+  if wget -q -O "${PKG_DIR}/${ASSET_NAME}.md5" "${DL_BASE}/${ASSET_NAME}.md5"; then
+    EXPECTED="$(awk '{print $1}' "${PKG_DIR}/${ASSET_NAME}.md5")"
+    ACTUAL="$(md5sum "${PKG_DIR}/${ASSET_NAME}" | awk '{print $1}')"
+    if [ "${EXPECTED}" != "${ACTUAL}" ]; then
+      echo "ERROR: md5 mismatch (expected ${EXPECTED}, got ${ACTUAL}). Removing."
+      rm -f "${PKG_DIR}/${ASSET_NAME}" "${PKG_DIR}/${ASSET_NAME}.md5"
+      exit 1
+    fi
+    echo "md5 OK."
+  fi
+
+  /sbin/installpkg "${PKG_DIR}/${ASSET_NAME}"
+  LOCAL_PKG="${PKG_DIR}/${ASSET_NAME}"
+fi
+
+echo "Package in place: ${LOCAL_PKG}"
+
+# Load the module if it isn't already.
+if ! lsmod | grep -q "^r8127"; then
+  if [ -f "/lib/modules/${KVER}/extra/r8127.ko" ]; then
+    /sbin/depmod -a "${KVER}"
+    /sbin/modprobe r8127 2>/dev/null && echo "r8127 module loaded."
+  fi
+else
+  echo "r8127 module already loaded."
+fi
+
+# Boot-order fix: rc.inet1 runs before /boot/extra/ packages are installed,
+# so the bond was created without eth1. If eth1 now exists but is missing
+# from bond0, restart networking once so the bond is rebuilt with eth1
+# included (its position in BONDNICS controls primary/backup).
+if [ -e /sys/class/net/eth1 ] && [ -e /sys/class/net/bond0 ]; then
+  if grep -q "eth1" /boot/config/network.cfg 2>/dev/null && \
+     ! grep -q "Slave Interface: eth1" /proc/net/bonding/bond0 2>/dev/null; then
+    echo "eth1 is missing from bond0 — restarting networking to include it."
+    nohup bash -c "sleep 2 && /etc/rc.d/rc.inet1 restart" \
+      >/var/log/r8127-net-restart.log 2>&1 </dev/null &
+    disown 2>/dev/null
+    echo "Networking restart scheduled (background)."
+  fi
+fi
+
+echo "-------------------------------------------"
+]]></INLINE>
+</FILE>
+
+<FILE Run="/bin/bash" Method="remove">
+<INLINE><![CDATA[
+echo "Uninstalling r8127-driver plugin metadata."
+echo "Note: the .txz in /boot/extra is left in place. Remove it manually if"
+echo "you want the kernel module gone on next reboot."
+rm -rf /usr/local/emhttp/plugins/r8127-driver
+rm -rf /boot/config/plugins/r8127-driver
+]]></INLINE>
+</FILE>
+
+</PLUGIN>

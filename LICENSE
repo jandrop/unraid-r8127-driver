@@ -1,0 +1,21 @@
+                    GNU GENERAL PUBLIC LICENSE
+                       Version 2, June 1991
+
+ Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+The full text of the GNU General Public License v2.0 is available at:
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+This repository contains:
+- An Unraid plugin (`unraid-r8127-driver.plg`) — GPL-2.0
+- Build scripts to compile the Realtek r8127 OOT driver — GPL-2.0
+- Pre-compiled `.txz` packages distributed via GitHub Releases — GPL-2.0
+  (the underlying r8127 driver source is published by Realtek under GPL-2.0
+  and is not included in this repository; the build script fetches it from
+  https://github.com/SzilagyiDaniel/Unraid-r8127 at build time)
+
+The plugin layout and naming are derived from the upstream
+SzilagyiDaniel/Unraid-r8127 plugin (also GPL-2.0).
