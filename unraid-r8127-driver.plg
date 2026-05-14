@@ -12,6 +12,7 @@
 
 <PLUGIN name="&name;" author="&author;" version="&version;"
   pluginURL="&pluginURL;" min="6.12.54"
+  icon="&gitURL;/images/realtek.png"
   support="https://github.com/jandrop/unraid-r8127-driver/issues">
 
 <CHANGES>
