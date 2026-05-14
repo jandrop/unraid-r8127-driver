@@ -21,6 +21,7 @@ system. Until upstream catches up, you can use this repo.
 
 | Unraid kernel | Status | Release tag |
 |---|---|---|
+| `6.18.28-Unraid` (Unraid 7.3.0) | ✅ Available | [6.18.28-Unraid](https://github.com/jandrop/unraid-r8127-driver/releases/tag/6.18.28-Unraid) |
 | `6.12.87-Unraid` (Unraid 7.2.6) | ✅ Available | [6.12.87-Unraid](https://github.com/jandrop/unraid-r8127-driver/releases/tag/6.12.87-Unraid) |
 | Older or newer kernels | ⚠️ Build it yourself with `scripts/build.sh` and open a PR/issue with the .txz |
 
@@ -99,12 +100,20 @@ sed -i '/blacklist r8169/d' /boot/config/modprobe.d/r8169.conf
 You'll need a working Unraid box with Docker enabled. On the server:
 
 ```bash
+# Build for the currently running kernel:
 curl -sL https://raw.githubusercontent.com/jandrop/unraid-r8127-driver/main/scripts/build.sh | bash
+
+# Cross-build for a different kernel (e.g. before upgrading Unraid):
+KVER=6.18.28-Unraid bash scripts/build.sh
 ```
+
+The `KVER` variable lets you build the driver for any kernel — even one you
+haven't booted yet — so you can pre-stage the `.txz` in `/boot/extra/`
+**before** upgrading Unraid and keep your network up through the update.
 
 The script:
 
-1. Downloads kernel source matching `uname -r` from
+1. Downloads kernel source for `$KVER` from
    [`ich777/unraid_kernel`](https://github.com/ich777/unraid_kernel/releases).
 2. Downloads driver source from
    [`SzilagyiDaniel/Unraid-r8127`](https://github.com/SzilagyiDaniel/Unraid-r8127).
@@ -113,7 +122,7 @@ The script:
 5. Packages everything as `r8127-<date>-<kernel>-1.txz` plus an `.md5`.
 
 After it finishes you can either upload both files as assets on a GitHub
-Release tagged with the exact kernel string (e.g. `6.12.95-Unraid`), or
+Release tagged with the exact kernel string (e.g. `6.18.28-Unraid`), or
 just drop the `.txz` into `/boot/extra/` and `installpkg` it locally.
 
 ## Credits

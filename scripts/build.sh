@@ -15,7 +15,10 @@
 
 set -euo pipefail
 
-KVER="$(uname -r)"
+# Allow overriding the target kernel from the environment so the script can
+# cross-build for a kernel different from the one currently running.
+# Example: KVER=6.18.28-Unraid bash scripts/build.sh
+KVER="${KVER:-$(uname -r)}"
 DATE="$(date +%Y%m%d)"
 BUILD="/tmp/build"
 KERNEL_DIR="${BUILD}/kernel"
