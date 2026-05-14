@@ -12,7 +12,6 @@
 
 <PLUGIN name="&name;" author="&author;" version="&version;"
   pluginURL="&pluginURL;" min="6.12.54"
-  icon="&gitURL;/images/realtek.png"
   support="https://github.com/jandrop/unraid-r8127-driver/issues">
 
 <CHANGES>
@@ -21,6 +20,10 @@
   built for Unraid kernels the upstream repo does not yet ship
   (starting with 6.12.87-Unraid).
 </CHANGES>
+
+<FILE Name="&emhttp;/images/r8127-driver.png" Run="chmod 644">
+<URL>&gitURL;/images/realtek.png</URL>
+</FILE>
 
 <FILE Name="&emhttp;/README.md">
 <INLINE><![CDATA[
